@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Trợ lý giao thông – Hồ Con Rùa (Quận 3 - TP.HCM)</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              800: '#075985',
+              900: '#0c4a6e',
+            },
+            digital: {
+              cyan: '#06b6d4',
+              teal: '#14b8a6',
+              navy: '#0f172a',
+              card: '#1e293b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script>
+    // Áp dụng theme trước khi render để chống hiện tượng giật sáng tối (FOUC)
+    if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  </script>
+
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-slate-50 dark:bg-[#0f2744] text-slate-800 dark:text-slate-300 antialiased min-h-screen flex flex-col mobile-bottom-space transition-colors duration-200">
+
+
+  <!-- HEADER THANH ĐIỀU HƯỚNG CHÍNH -->
+  <header class="sticky top-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors duration-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <!-- Logo & Tên dự án -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-sky-500 flex items-center justify-center text-white shadow-md shadow-cyan-500/20">
+          <!-- Biểu tượng Sa bàn Hồ Con Rùa -->
+          <svg class="w-6 h-6 fill-none stroke-current" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">Trợ lý giao thông</h1>
+            <span class="bg-cyan-100 dark:bg-cyan-900/70 text-cyan-800 dark:text-cyan-200 text-[10px] font-extrabold px-1.5 py-0.5 rounded">HỒ CON RÙA</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation Desktop Links -->
+      <nav class="hidden lg:flex items-center gap-6 text-xs font-semibold text-slate-600 dark:text-slate-300">
+        <a href="#homeSection" class="nav-link hover:text-cyan-600 dark:hover:text-cyan-400 transition">Tổng quan</a>
+        <a href="#mapSection" class="nav-link hover:text-cyan-600 dark:hover:text-cyan-400 transition">Bản đồ sa bàn</a>
+        <a href="#trafficSection" class="nav-link hover:text-cyan-600 dark:hover:text-cyan-400 transition">Tình hình kẹt xe</a>
+        <a href="#floodSection" class="nav-link hover:text-cyan-600 dark:hover:text-cyan-400 transition">Mưa & Nguy cơ ngập</a>
+        <a href="#routingSection" class="nav-link hover:text-cyan-600 dark:hover:text-cyan-400 transition">Tìm tuyến đường</a>
+        <a href="#reportSection" class="nav-link hover:text-cyan-600 dark:hover:text-cyan-400 transition">Gửi báo cáo</a>
+      </nav>
+
+      <!-- Nút Chuyển ngôn ngữ + Theme -->
+      <div class="flex items-center gap-2">
+        <!-- Nút chuyển ngôn ngữ VI / EN -->
+        <button id="langToggleBtn" type="button" title="Switch language / Đổi ngôn ngữ" class="flex items-center justify-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 transition shadow-2xs text-xs font-bold tracking-wide">
+          <span id="langLabel">EN</span>
+        </button>
+        <!-- Nút chuyển theme -->
+        <button id="themeToggleBtn" type="button" aria-label="Chuyển đổi giao diện sáng/tối" title="Chuyển đổi giao diện sáng / tối" class="flex items-center justify-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 w-9 h-9 rounded-lg border border-slate-300 dark:border-slate-700 transition shadow-2xs">
+          <svg id="themeIconSun" class="w-4 h-4 text-amber-400 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+          <svg id="themeIconMoon" class="w-4 h-4 text-slate-600 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- NỘI DUNG CHÍNH -->
+  <main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+
+    <!-- ==================== SECTION 1 — TRANG CHỦ: TRỢ LÝ GIAO THÔNG ==================== -->
+    <section id="homeSection" class="scroll-mt-20">
+      <!-- Hero Banner -->
+      <div class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-cyan-950 text-white p-6 sm:p-8 shadow-xl">
+        <!-- Họa tiết lưới tọa độ Digital Twin -->
+        <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#06b6d4_1px,transparent_1px)] [background-size:16px_16px]"></div>
+        
+        <div class="relative z-10 space-y-4">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-semibold">
+              
+              BẢN SAO SỐ KHU VỰC HỒ CON RÙA (QUẬN 3 - TP.HCM) &bull; DỮ LIỆU THỰC TẾ
+            </div>
+
+            <h2 class="text-2xl sm:text-4xl font-extrabold tracking-tight leading-tight">
+              Trợ lý giao thông
+            </h2>
+
+            <p class="text-slate-300 text-xs sm:text-sm leading-relaxed max-w-2xl">
+              Hệ thống giám sát và hỗ trợ người tham gia giao thông thời gian thực. Giúp bạn chủ động theo dõi tình hình lưu thông, phát hiện kịp thời các điểm ùn tắc, nhận biết nguy cơ ngập lụt cục bộ và lựa chọn tuyến đường di chuyển thông minh nhất quanh khu vực Hồ Con Rùa.
+            </p>
+
+            <div class="flex flex-wrap gap-3 pt-2">
+              <a href="#mapSection" class="nav-link bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-600 hover:to-sky-600 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-lg shadow-cyan-500/25 transition flex items-center gap-2">
+                <svg class="w-4 h-4 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                Khám phá giao thông
+              </a>
+
+              <a href="#routingSection" class="nav-link bg-white/10 hover:bg-white/20 text-white font-semibold text-xs sm:text-sm px-5 py-2.5 rounded-xl border border-white/20 backdrop-blur-sm transition flex items-center gap-2">
+                <svg class="w-4 h-4 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                Tìm tuyến đường
+              </a>
+            </div>
+          </div>
+      </div>
+    </section>
+
+    <!-- ==================== SECTION 2 — BẢN ĐỒ GIAO THÔNG HỒ CON RÙA ==================== -->
+    <section id="mapSection" class="scroll-mt-20 space-y-3">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <div class="flex items-center gap-2">
+            <h3 class="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">Bản đồ giao thông Hồ Con Rùa</h3>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Tập trung khu vực Công trường Quốc Tế và các trục đường kết nối lân cận.</p>
+        </div>
+
+        <!-- Bộ lọc lớp bản đồ -->
+        <div class="flex flex-wrap items-center gap-1.5 bg-slate-200/80 dark:bg-slate-800 p-1 rounded-xl text-xs font-semibold border border-transparent dark:border-slate-700">
+          <button data-filter="congestion" class="map-filter-btn active-filter px-3 py-1 rounded-lg bg-cyan-600 text-white shadow-xs transition">
+            Ùn tắc
+          </button>
+          <button data-filter="flood" class="map-filter-btn px-3 py-1 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 shadow-xs transition">
+            Ngập lụt
+          </button>
+          <button data-filter="blocked" class="map-filter-btn px-3 py-1 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 shadow-xs transition">
+            Cản trở
+          </button>
+        </div>
+      </div>
+
+      <!-- Container Bản đồ Leaflet -->
+      <div class="relative w-full h-[450px] sm:h-[550px] rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div id="trafficMap" class="w-full h-full z-0"></div>
+
+        <!-- Chú giải nổi góc trái dưới -->
+        <div class="absolute bottom-4 left-4 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-lg text-xs space-y-1.5 max-w-[220px] hidden sm:block">
+          <div class="font-bold text-slate-900 dark:text-white text-[11px] border-b border-slate-200 dark:border-slate-800 pb-1">BẢN ĐỒ CHÚ GIẢI</div>
+          <div class="flex items-center gap-2">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M1 21h22L12 2 1 21z" fill="#f59e0b" stroke="#92400e" stroke-width="1.2"/><text x="12" y="18.5" text-anchor="middle" font-size="9" font-weight="900" fill="white" font-family="sans-serif">!</text></svg>
+            <span class="text-[11px] text-slate-600 dark:text-slate-300">Đông xe / Di chuyển chậm</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d="M1 21h22L12 2 1 21z" fill="#ef4444" stroke="#991b1b" stroke-width="1.2"/><text x="12" y="18.5" text-anchor="middle" font-size="9" font-weight="900" fill="white" font-family="sans-serif">!</text></svg>
+            <span class="text-[11px] text-slate-600 dark:text-slate-300">Ùn tắc nghiêm trọng / Phong tỏa</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="w-3.5 h-3.5 rounded-full bg-blue-500 ring-2 ring-blue-300 dark:ring-blue-700"></span>
+            <span class="text-[11px] text-slate-600 dark:text-slate-300">Điểm ngập cần theo dõi</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SECTION 3 — KHU VỰC CÓ ĐANG KẸT XE KHÔNG? ==================== -->
+    <section id="trafficSection" class="scroll-mt-20 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <div class="flex items-center gap-2">
+            <h3 class="text-lg sm:text-xl font-bold text-slate-900">Khu vực có đang kẹt xe không?</h3>
+          </div>
+          <p class="text-xs text-slate-500">Bảng theo dõi mật độ và tốc độ lưu thông thực tế trên các trục đường kết nối Hồ Con Rùa.</p>
+        </div>
+
+        <button onclick="window.trafficDashboard.fetchTomTomData()" class="self-start sm:self-auto bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 transition flex items-center gap-1.5 shadow-2xs">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Làm mới
+        </button>
+      </div>
+
+      <!-- Bảng danh sách các tuyến đường toàn màn hình -->
+      <div class="w-full bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse border-2">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                <th class="py-3 px-4">Tuyến đường</th>
+                <th class="py-3 px-4 text-center">Tình trạng</th>
+                <th class="py-3 px-4 text-right">Tốc độ lưu thông</th>
+              </tr>
+            </thead>
+            <tbody id="trafficTableBody" class="divide-y divide-slate-100 text-xs">
+              <!-- Nội dung được nạp động từ traffic.js qua TomTom Flow API -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SECTION 4 — QUAN SÁT LƯỢNG MƯA VÀ DỰ BÁO NGUY CƠ NGẬP ==================== -->
+    <section id="floodSection" class="scroll-mt-20 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <div class="flex items-center gap-2">
+            <h3 class="text-lg sm:text-xl font-bold text-slate-900">Quan sát lượng mưa & Dự báo nguy cơ ngập</h3>
+          </div>
+          <p class="text-xs text-slate-500">Mô hình tính toán dựa trên độ dốc địa hình, lưu lượng mưa thực tế và năng lực cống thoát.</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-500">Đánh giá chung:</span>
+          <span id="overallFloodRiskBadge" class="px-2.5 py-1 text-xs rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+            BÌNH THƯỜNG
+          </span>
+        </div>
+      </div>
+
+      <!-- Thẻ chỉ số thời tiết nhanh -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 text-center">
+          <span class="text-[11px] text-slate-500 block">Nhiệt độ thực tế</span>
+          <span id="weatherTempValue" class="text-lg font-bold text-slate-800">31°C</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 text-center">
+          <span class="text-[11px] text-slate-500 block">Độ ẩm không khí</span>
+          <span id="weatherHumidityValue" class="text-lg font-bold text-slate-800">76%</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 text-center">
+          <span class="text-[11px] text-slate-500 block">Lượng mưa ghi nhận</span>
+          <span id="currentRainValue" class="text-lg font-bold text-cyan-600">0 mm/h</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 text-center">
+          <span class="text-[11px] text-slate-500 block">Điểm trũng theo dõi</span>
+          <span class="text-lg font-bold text-slate-800">5 điểm</span>
+        </div>
+      </div>
+
+      <!-- Bảng theo dõi các điểm nguy cơ ngập toàn màn hình -->
+      <div class="w-full bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        <div class="p-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+          <span class="font-bold text-xs text-slate-700 uppercase tracking-wider">Điểm giám sát thoát nước Hồ Con Rùa</span>
+          <span class="text-[11px] text-slate-400">Click hàng để định vị bản đồ</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50/50 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase">
+                <th class="py-2.5 px-3">Điểm theo dõi</th>
+                <th class="py-2.5 px-3 text-center">Mức nguy cơ</th>
+                <th class="py-2.5 px-3 text-center">Mực nước</th>
+                <th class="py-2.5 px-3">Tình trạng ghi nhận</th>
+              </tr>
+            </thead>
+            <tbody id="floodPointsTableBody" class="divide-y divide-slate-100 text-xs">
+              <!-- Nạp động từ weather.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SECTION 5 — TÌM TUYẾN ĐƯỜNG TỐI ƯU HƠN ==================== -->
+    <section id="routingSection" class="scroll-mt-20 space-y-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <h3 class="text-lg sm:text-xl font-bold text-slate-900">Tìm tuyến đường tối ưu hơn</h3>
+          <span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">
+            Thuật toán né điểm ngập & Kẹt xe thực tế
+          </span>
+        </div>
+        <p class="text-xs text-slate-500">Định tuyến thực tế, tự động loại trừ đoạn ngập sâu hoặc bị phong tỏa.</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <!-- Form nhập liệu -->
+        <div class="lg:col-span-5 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+          <!-- Điểm xuất phát (A) -->
+          <div class="relative">
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">Điểm xuất phát (A)</label>
+            <div class="relative">
+              <input type="text" id="routeStartInput" autocomplete="off" placeholder="Tìm kiếm địa điểm, tên đường tại Quận 3..." class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs rounded-xl p-2.5 pl-8 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition">
+              <span class="absolute left-2.5 top-2.5 text-xs text-emerald-500 font-bold">A</span>
+            </div>
+            <!-- Danh sách gợi ý tìm kiếm A -->
+            <div id="routeStartSuggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-30 max-h-56 overflow-y-auto text-xs divide-y divide-slate-100 dark:divide-slate-700"></div>
+          </div>
+
+          <!-- Nút đổi chiều -->
+          <div class="flex justify-center -my-2">
+            <button id="swapRoutePointsBtn" type="button" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 p-1.5 rounded-full border border-slate-300 dark:border-slate-700 shadow-2xs transition" title="Đổi chiều điểm đi / đến">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
+            </button>
+          </div>
+
+          <!-- Điểm đến (B) -->
+          <div class="relative">
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-1">Điểm đến (B)</label>
+            <div class="relative">
+              <input type="text" id="routeEndInput" autocomplete="off" placeholder="Tìm kiếm địa điểm đến tại Quận 3..." class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 text-xs rounded-xl p-2.5 pl-8 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition">
+              <span class="absolute left-2.5 top-2.5 text-xs text-rose-500 font-bold">B</span>
+            </div>
+            <!-- Danh sách gợi ý tìm kiếm B -->
+            <div id="routeEndSuggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-30 max-h-56 overflow-y-auto text-xs divide-y divide-slate-100 dark:divide-slate-700"></div>
+          </div>
+
+          <!-- Chọn phương tiện -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Phương tiện di chuyển</label>
+            <div class="grid grid-cols-3 gap-2">
+              <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 has-[:checked]:border-cyan-600 has-[:checked]:bg-cyan-50 has-[:checked]:text-cyan-800 transition">
+                <input type="radio" name="routeVehicle" value="motorbike" checked class="hidden">
+                <span class="text-sm">🛵</span>
+                <span class="text-xs font-semibold">Xe máy</span>
+              </label>
+
+              <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 has-[:checked]:border-cyan-600 has-[:checked]:bg-cyan-50 has-[:checked]:text-cyan-800 transition">
+                <input type="radio" name="routeVehicle" value="car" class="hidden">
+                <span class="text-sm">🚗</span>
+                <span class="text-xs font-semibold">Ô tô</span>
+              </label>
+
+              <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 has-[:checked]:border-cyan-600 has-[:checked]:bg-cyan-50 has-[:checked]:text-cyan-800 transition">
+                <input type="radio" name="routeVehicle" value="bike" class="hidden">
+                <span class="text-sm">🚶</span>
+                <span class="text-xs font-semibold">Đi bộ/Xe đạp</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Tùy chọn ưu tiên -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Tiêu chí ưu tiên</label>
+            <select id="routePreferenceSelect" class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl p-2.5 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition">
+              <option value="avoid_flood" selected>Tránh các đoạn có nguy cơ ngập lụt</option>
+              <option value="least_congestion">Ít ùn tắc nhất (Thông thoáng)</option>
+              <option value="fastest">Nhanh nhất (Thời gian ngắn nhất)</option>
+            </select>
+          </div>
+
+          <button id="calculateRouteBtn" class="w-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-700 hover:to-sky-700 text-white font-bold py-2.5 rounded-xl text-xs sm:text-sm shadow-md transition flex items-center justify-center gap-2">
+            <svg class="w-4 h-4 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+            Tính toán tuyến đường tối ưu
+          </button>
+        </div>
+
+        <!-- Khung hiển thị Bản đồ VietMap -->
+        <div class="lg:col-span-7">
+          <!-- Bản đồ VietMap hiển thị lộ trình tìm đường -->
+          <div class="w-full bg-white dark:bg-slate-900 rounded-2xl border-2 border-slate-300 dark:border-slate-700 overflow-hidden shadow-sm">
+            <div class="px-4 py-3 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-cyan-500"></span>
+                <span id="routeMapHeaderTitle" class="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide">Bản đồ lộ trình</span>
+              </div>
+            </div>
+            <div class="relative w-full h-[420px] sm:h-[480px]">
+              <div id="routingMap" class="w-full h-full z-0"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SECTION 7 — GỬI BÁO CÁO SỰ CỐ ==================== -->
+    <section id="reportSection" class="scroll-mt-20 space-y-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <h3 class="text-lg sm:text-xl font-bold text-slate-900">Gửi báo cáo sự cố giao thông</h3>
+          <span class="text-[10px] bg-cyan-100 text-cyan-800 font-bold px-2 py-0.5 rounded">
+            Cộng đồng người dân đóng góp
+          </span>
+        </div>
+        <p class="text-xs text-slate-500">Thông tin phản ánh từ người dân giúp hoàn thiện Bản sao số Hồ Con Rùa thời gian thực.</p>
+      </div>
+
+      <!-- Form gửi báo cáo căn giữa gọn gàng -->
+      <div class="max-w-3xl mx-auto bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">
+        <form id="incidentReportForm" class="space-y-4">
+          <!-- Vị trí sự cố -->
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-xs font-bold text-slate-700">Vị trí xảy ra sự cố <span class="text-rose-500">*</span></label>
+              <button type="button" id="pickLocationFromMapBtn" class="text-[11px] text-cyan-600 hover:text-cyan-800 font-medium transition flex items-center gap-1">
+                📍 Nhấp chọn trên bản đồ
+              </button>
+            </div>
+            <input type="text" id="reportLocationInput" placeholder="Ví dụ: Vòng xoay Hồ Con Rùa, ngã tư Trần Cao Vân..." required class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition">
+          </div>
+
+          <!-- Loại sự cố & Mức độ -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Loại sự cố <span class="text-rose-500">*</span></label>
+              <select id="reportTypeSelect" class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition">
+                <option value="congestion">Ùn tắc giao thông</option>
+                <option value="flood">Ngập lụt / Nước đọng</option>
+                <option value="accident">Tai nạn hoặc vật cản</option>
+                <option value="blocked">Đường bị phong tỏa / Rào chắn</option>
+                <option value="other">Vấn đề khác</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">Mức độ ảnh hưởng <span class="text-rose-500">*</span></label>
+              <select id="reportSeveritySelect" class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition">
+                <option value="low">Nhẹ (vẫn lưu thông chậm)</option>
+                <option value="medium" selected>Trung bình (gây khó khăn)</option>
+                <option value="high">Nghiêm trọng (không thể lưu thông)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Mô tả chi tiết -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Mô tả sự cố <span class="text-rose-500">*</span></label>
+            <textarea id="reportDescTextarea" rows="3" placeholder="Mô tả cụ thể nguyên nhân, hướng đi bị ảnh hưởng hoặc mực nước ước tính..." required class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl p-3 focus:ring-2 focus:ring-cyan-500 focus:outline-none transition"></textarea>
+          </div>
+
+          <!-- Đính kèm ảnh -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Đính kèm ảnh hiện trường (Tùy chọn)</label>
+            <input type="file" id="reportImageInput" accept="image/*" class="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-cyan-50 file:text-cyan-700 hover:file:bg-cyan-100 cursor-pointer">
+            
+            <!-- Khung xem trước ảnh -->
+            <div id="imagePreviewContainer" class="hidden mt-2 relative inline-block">
+              <img id="imagePreviewImg" src="" alt="Xem trước" class="h-24 w-auto rounded-xl border border-slate-200 object-cover shadow-2xs">
+              <button type="button" id="removeImageBtn" class="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold shadow hover:bg-rose-600 transition">×</button>
+            </div>
+          </div>
+
+          <!-- Hộp thông báo phản hồi sau khi gửi -->
+          <div id="reportFeedbackAlert" class="hidden"></div>
+
+          <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 rounded-xl text-xs sm:text-sm shadow-md transition flex items-center justify-center gap-2">
+            <svg class="w-4 h-4 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+            Gửi báo cáo sự cố (Tạo mã xác minh)
+          </button>
+        </form>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER CHUẨN MỰC -->
+  <footer class="bg-white border-t border-slate-200 py-6 mt-12 text-slate-500 text-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="space-y-1 text-center sm:text-left">
+        <div class="font-bold text-slate-800">DỰ ÁN GIẢI QUYẾT GIAO THÔNG</div>
+        <div class="text-[11px] text-slate-500 font-medium">Được thực hiện bởi: Học sinh 10a3 THPT Lê Quý Đôn NK 26-27</div>
+      </div>
+      <div class="text-[11px] text-slate-400 text-center sm:text-right space-y-0.5">
+        <div>Tích hợp API: <strong>Vietmap Map Tiles</strong> &bull; <strong>TomTom Traffic Flow</strong> &bull; <strong>Open-Meteo</strong></div>
+        <p class="text-[11px] text-slate-400">Ứng dụng theo dõi, dự báo ùn tắc giao thông và ngập lụt kết hợp sa bàn tương tác.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MOBILE BOTTOM NAVIGATION (Thanh điều hướng nhanh trên điện thoại) -->
+  <nav class="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-3 py-2 flex items-center justify-around shadow-lg">
+    <a href="#homeSection" class="nav-link flex flex-col items-center text-slate-600 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 transition">
+      <svg class="w-5 h-5 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      <span class="text-[10px] mt-0.5 font-medium">Trang chủ</span>
+    </a>
+
+    <a href="#mapSection" class="nav-link flex flex-col items-center text-slate-600 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 transition">
+      <svg class="w-5 h-5 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+      <span class="text-[10px] mt-0.5 font-medium">Bản đồ</span>
+    </a>
+
+    <a href="#trafficSection" class="nav-link flex flex-col items-center text-slate-600 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 transition">
+      <svg class="w-5 h-5 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      <span class="text-[10px] mt-0.5 font-medium">Kẹt xe</span>
+    </a>
+
+    <a href="#floodSection" class="nav-link flex flex-col items-center text-slate-600 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 transition">
+      <svg class="w-5 h-5 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+      <span class="text-[10px] mt-0.5 font-medium">Mưa & Ngập</span>
+    </a>
+
+    <a href="#routingSection" class="nav-link flex flex-col items-center text-slate-600 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 transition">
+      <svg class="w-5 h-5 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+      <span class="text-[10px] mt-0.5 font-medium">Định tuyến</span>
+    </a>
+
+    <a href="#reportSection" class="nav-link flex flex-col items-center text-slate-600 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 transition">
+      <svg class="w-5 h-5 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      <span class="text-[10px] mt-0.5 font-medium">Báo cáo</span>
+    </a>
+  </nav>
+
+  <!-- MODAL QUÉT MÃ QR SA BÀN -->
+  <div id="qrModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-slate-100">
+      <div class="w-12 h-12 bg-cyan-100 text-cyan-700 rounded-full flex items-center justify-center mx-auto text-xl">
+        📱
+      </div>
+
+      <div>
+        <h4 class="font-bold text-slate-900 text-base">Mã QR truy cập từ Sa bàn</h4>
+        <p class="text-xs text-slate-500 mt-1">
+          Dùng camera điện thoại quét mã QR gắn trên sa bàn Hồ Con Rùa để mở website trực tiếp trên thiết bị di động.
+        </p>
+      </div>
+
+      <!-- Khung hiển thị QR code minh họa thực tế -->
+      <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col items-center justify-center">
+        <!-- SVG QR Code Vector sắc nét -->
+        <svg class="w-44 h-44 text-slate-900" viewBox="0 0 100 100" fill="currentColor">
+          <!-- QR Corner 1 -->
+          <rect x="10" y="10" width="28" height="28" fill="#0f172a" rx="4"/>
+          <rect x="16" y="16" width="16" height="16" fill="#ffffff" rx="2"/>
+          <rect x="20" y="20" width="8" height="8" fill="#0284c7" rx="1"/>
+          <!-- QR Corner 2 -->
+          <rect x="62" y="10" width="28" height="28" fill="#0f172a" rx="4"/>
+          <rect x="68" y="16" width="16" height="16" fill="#ffffff" rx="2"/>
+          <rect x="72" y="20" width="8" height="8" fill="#0284c7" rx="1"/>
+          <!-- QR Corner 3 -->
+          <rect x="10" y="62" width="28" height="28" fill="#0f172a" rx="4"/>
+          <rect x="16" y="68" width="16" height="16" fill="#ffffff" rx="2"/>
+          <rect x="20" y="72" width="8" height="8" fill="#0284c7" rx="1"/>
+          <!-- Data blocks -->
+          <rect x="44" y="12" width="6" height="6" fill="#0f172a"/>
+          <rect x="52" y="20" width="6" height="6" fill="#0284c7"/>
+          <rect x="44" y="28" width="6" height="6" fill="#0f172a"/>
+          <rect x="12" y="44" width="6" height="6" fill="#0f172a"/>
+          <rect x="24" y="48" width="8" height="6" fill="#0284c7"/>
+          <rect x="44" y="44" width="12" height="12" fill="#0f172a" rx="2"/>
+          <rect x="62" y="44" width="6" height="6" fill="#0f172a"/>
+          <rect x="74" y="48" width="10" height="6" fill="#0284c7"/>
+          <rect x="44" y="62" width="6" height="10" fill="#0284c7"/>
+          <rect x="54" y="72" width="10" height="6" fill="#0f172a"/>
+          <rect x="70" y="64" width="8" height="8" fill="#0284c7"/>
+          <rect x="80" y="76" width="8" height="8" fill="#0f172a"/>
+        </svg>
+        <span class="text-[10px] text-slate-400 mt-2 font-mono">ID: HCR-DIGITAL-TWIN-2026</span>
+      </div>
+
+      <button id="closeQrModalBtn" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold py-2 rounded-xl transition">
+        Đóng cửa sổ
+      </button>
+    </div>
+  </div>
+
+  <!-- CÁC TỆP MÃ NGUỒN JAVASCRIPT (CHẾ ĐỘ API THỰC TẾ) -->
+  <script src="js/config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/traffic.js"></script>
+  <script src="js/weather.js"></script>
+  <script src="js/routing.js"></script>
+  <script src="js/reports.js"></script>
+  <script src="js/assistant.js"></script>
+  <script src="js/app.js"></script>
+<script>
+// ===== THEME TOGGLE =====
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+const themeIconSun = document.getElementById('themeIconSun');
+const themeIconMoon = document.getElementById('themeIconMoon');
+
+function applyThemeIcons(isDark) {
+  if (isDark) {
+    themeIconSun.classList.remove('hidden');
+    themeIconMoon.classList.add('hidden');
+  } else {
+    themeIconSun.classList.add('hidden');
+    themeIconMoon.classList.remove('hidden');
+  }
+}
+
+// Initialize icons based on current theme
+applyThemeIcons(document.documentElement.classList.contains('dark'));
+
+themeToggleBtn.addEventListener('click', () => {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  applyThemeIcons(isDark);
+});
+
+// ===== LANGUAGE TOGGLE (VI / EN) =====
+const TRANSLATIONS = {
+  vi: {
+    // Header
+    navHome: 'Tổng quan', navMap: 'Bản đồ sa bàn', navTraffic: 'Tình hình kẹt xe',
+    navFlood: 'Mưa & Nguy cơ ngập', navRouting: 'Tìm tuyến đường', navReport: 'Gửi báo cáo',
+    h1: 'Trợ lý giao thông',
+    // Hero
+    heroTitle: 'Trợ lý giao thông',
+    heroBadge: 'BẢN SAO SỐ KHU VỰC HỒ CON RÙA (QUẬN 3 - TP.HCM) • DỮ LIỆU THỰC TẾ',
+    heroDesc: 'Hệ thống giám sát và hỗ trợ người tham gia giao thông thời gian thực. Giúp bạn chủ động theo dõi tình hình lưu thông, phát hiện kịp thời các điểm ùn tắc, nhận biết nguy cơ ngập lụt cục bộ và lựa chọn tuyến đường di chuyển thông minh nhất quanh khu vực Hồ Con Rùa.',
+    btnExplore: 'Khám phá giao thông', btnRoute: 'Tìm tuyến đường',
+    // Map
+    mapTitle: 'Bản đồ giao thông Hồ Con Rùa',
+    mapSubtitle: 'Tập trung khu vực Công trường Quốc Tế và các trục đường kết nối lân cận.',
+    mapLegendTitle: 'BẢN ĐỒ CHÚ GIẢI',
+    filterCongestion: 'Ùn tắc', filterFlood: 'Ngập lụt', filterAccident: 'Tai nạn', filterBlocked: 'Cản trở',
+    // Traffic table
+    trafficTitle: 'Khu vực có đang kẹt xe không?',
+    trafficSubtitle: 'Bảng theo dõi mật độ và tốc độ lưu thông thực tế trên các trục đường kết nối Hồ Con Rùa.',
+    btnRefresh: 'Làm mới', colRoute: 'Tuyến đường', colStatus: 'Tình trạng', colSpeed: 'Tốc độ lưu thông',
+    // Flood
+    floodTitle: 'Quan sát lượng mưa & Dự báo nguy cơ ngập',
+    floodSubtitle: 'Mô hình tính toán dựa trên độ dốc địa hình, lưu lượng mưa thực tế và năng lực cống thoát.',
+    floodOverall: 'Đánh giá chung:', floodTableTitle: 'Điểm giám sát thoát nước Hồ Con Rùa',
+    floodTableHint: 'Click hàng để định vị bản đồ',
+    colPoint: 'Điểm theo dõi', colRisk: 'Mức nguy cơ', colWater: 'Mực nước', colState: 'Tình trạng ghi nhận',
+    statTemp: 'Nhiệt độ thực tế', statHumid: 'Độ ẩm không khí', statRain: 'Lượng mưa ghi nhận', statPoints: 'Điểm trũng theo dõi',
+    // Routing
+    routingTitle: 'Tìm tuyến đường tối ưu hơn',
+    routingBadge: 'Thuật toán né điểm ngập & Kẹt xe thực tế',
+    routingSubtitle: 'Định tuyến thực tế, tự động loại trừ đoạn ngập sâu hoặc bị phong tỏa.',
+    routeMapTitle: 'Bản đồ lộ trình',
+    startPlaceholder: 'Tìm kiếm địa điểm, tên đường tại Quận 3...',
+    endPlaceholder: 'Tìm kiếm địa điểm đến tại Quận 3...',
+    labelFrom: 'Điểm xuất phát (A)', labelTo: 'Điểm đến (B)', labelVehicle: 'Phương tiện di chuyển',
+    vehicleMotorbike: 'Xe máy', vehicleCar: 'Ô tô', vehicleBike: 'Đi bộ/Xe đạp',
+    labelPriority: 'Tiêu chí ưu tiên',
+    priorityFlood: 'Tránh các đoạn có nguy cơ ngập lụt',
+    priorityCongestion: 'Ít ùn tắc nhất (Thông thoáng)',
+    priorityFast: 'Nhanh nhất (Thời gian ngắn nhất)',
+    btnCalculate: 'Tính toán tuyến đường tối ưu',
+    // Report
+    reportTitle: 'Gửi báo cáo sự cố giao thông',
+    reportBadge: 'Cộng đồng người dân đóng góp',
+    reportSubtitle: 'Thông tin phản ánh từ người dân giúp hoàn thiện Bản sao số Hồ Con Rùa thời gian thực.',
+    labelLocation: 'Vị trí xảy ra sự cố', btnPickMap: '📍 Nhấp chọn trên bản đồ',
+    locationPlaceholder: 'Ví dụ: Vòng xoay Hồ Con Rùa, ngã tư Trần Cao Vân...',
+    labelType: 'Loại sự cố', labelSeverity: 'Mức độ ảnh hưởng',
+    typeCongestion: 'Ùn tắc giao thông', typeFlood: 'Ngập lụt / Nước đọng',
+    typeAccident: 'Tai nạn hoặc vật cản', typeBlocked: 'Đường bị phong tỏa / Rào chắn', typeOther: 'Vấn đề khác',
+    sevLow: 'Nhẹ (vẫn lưu thông chậm)', sevMed: 'Trung bình (gây khó khăn)', sevHigh: 'Nghiêm trọng (không thể lưu thông)',
+    labelDesc: 'Mô tả sự cố', descPlaceholder: 'Mô tả cụ thể nguyên nhân, hướng đi bị ảnh hưởng hoặc mực nước ước tính...',
+    labelPhoto: 'Đính kèm ảnh hiện trường (Tùy chọn)', btnSubmit: 'Gửi báo cáo sự cố (Tạo mã xác minh)',
+    // Mobile nav
+    mobileHome: 'Trang chủ', mobileMap: 'Bản đồ', mobileTraffic: 'Kẹt xe',
+    mobileFlood: 'Mưa & Ngập', mobileRouting: 'Định tuyến', mobileReport: 'Báo cáo',
+  },
+  en: {
+    // Header
+    navHome: 'Overview', navMap: 'Traffic Map', navTraffic: 'Congestion',
+    navFlood: 'Rain & Flood Risk', navRouting: 'Find Route', navReport: 'Submit Report',
+    h1: 'Traffic Assistant',
+    // Hero
+    heroTitle: 'Traffic Assistant',
+    heroBadge: 'HO CON RUA AREA (DISTRICT 3 - HO CHI MINH CITY) • LIVE DATA',
+    heroDesc: 'Real-time traffic monitoring and support system. Stay ahead of congestion, local flood risks, and find the smartest routes around the Ho Con Rua roundabout.',
+    btnExplore: 'Explore Traffic', btnRoute: 'Find Route',
+    // Map
+    mapTitle: 'Ho Con Rua Traffic Map',
+    mapSubtitle: 'Focused on Quoc Te Square and surrounding road corridors.',
+    mapLegendTitle: 'MAP LEGEND',
+    filterCongestion: 'Congestion', filterFlood: 'Flooding', filterAccident: 'Accident', filterBlocked: 'Blocked',
+    // Traffic table
+    trafficTitle: 'Is there congestion right now?',
+    trafficSubtitle: 'Real-time density and speed monitoring on Ho Con Rua corridors.',
+    btnRefresh: 'Refresh', colRoute: 'Road', colStatus: 'Status', colSpeed: 'Speed',
+    // Flood
+    floodTitle: 'Rainfall & Flood Risk Forecast',
+    floodSubtitle: 'Computed from terrain gradient, actual rainfall and drainage capacity.',
+    floodOverall: 'Overall risk:', floodTableTitle: 'Ho Con Rua Drainage Monitoring Points',
+    floodTableHint: 'Click a row to locate on map',
+    colPoint: 'Monitoring Point', colRisk: 'Risk Level', colWater: 'Water Level', colState: 'Status',
+    statTemp: 'Temperature', statHumid: 'Humidity', statRain: 'Rainfall recorded', statPoints: 'Low-lying points',
+    // Routing
+    routingTitle: 'Find the Best Route',
+    routingBadge: 'Flood & congestion avoidance algorithm',
+    routingSubtitle: 'Smart routing that avoids flooded or blocked road segments.',
+    routeMapTitle: 'Route Map',
+    startPlaceholder: 'Search places, streets in District 3...',
+    endPlaceholder: 'Search destination in District 3...',
+    labelFrom: 'Starting Point (A)', labelTo: 'Destination (B)', labelVehicle: 'Mode of transport',
+    vehicleMotorbike: 'Motorbike', vehicleCar: 'Car', vehicleBike: 'Walking/Bicycle',
+    labelPriority: 'Priority criterion',
+    priorityFlood: 'Avoid flood-risk segments',
+    priorityCongestion: 'Least congested (Clear roads)',
+    priorityFast: 'Fastest (Shortest time)',
+    btnCalculate: 'Calculate optimal route',
+    // Report
+    reportTitle: 'Submit a Traffic Incident Report',
+    reportBadge: 'Community-powered',
+    reportSubtitle: 'Community reports help enrich the real-time traffic assistant.',
+    labelLocation: 'Incident location', btnPickMap: '📍 Click to select on map',
+    locationPlaceholder: 'E.g. Ho Con Rua roundabout, Tran Cao Van intersection...',
+    labelType: 'Incident type', labelSeverity: 'Impact level',
+    typeCongestion: 'Traffic congestion', typeFlood: 'Flooding / Waterlogging',
+    typeAccident: 'Accident or obstruction', typeBlocked: 'Road blocked / Barriers', typeOther: 'Other issue',
+    sevLow: 'Minor (slow but moving)', sevMed: 'Moderate (causing difficulty)', sevHigh: 'Severe (cannot pass)',
+    labelDesc: 'Incident description', descPlaceholder: 'Describe the cause, affected direction, or estimated water level...',
+    labelPhoto: 'Attach on-site photo (Optional)', btnSubmit: 'Submit Incident Report (Generate verification code)',
+    // Mobile nav
+    mobileHome: 'Home', mobileMap: 'Map', mobileTraffic: 'Traffic',
+    mobileFlood: 'Rain/Flood', mobileRouting: 'Route', mobileReport: 'Report',
+  }
+};
+
+let currentLang = localStorage.getItem('lang') || 'vi';
+
+function applyLanguage(lang) {
+  const t = TRANSLATIONS[lang];
+  currentLang = lang;
+  localStorage.setItem('lang', lang);
+
+  const q = (sel) => document.querySelector(sel);
+  const qa = (sel) => document.querySelectorAll(sel);
+  const setText = (sel, key) => { const el = q(sel); if (el && t[key]) el.textContent = t[key]; };
+  const setPlaceholder = (sel, key) => { const el = q(sel); if (el && t[key]) el.placeholder = t[key]; };
+  const setOptionText = (sel, key) => { const el = q(sel); if (el && t[key]) el.textContent = t[key]; };
+
+  // Lang button shows the OTHER language to switch TO
+  document.getElementById('langLabel').textContent = lang === 'vi' ? 'EN' : 'VI';
+
+  // ── Desktop nav ──
+  const navLinks = qa('nav.hidden.lg\\:flex a.nav-link');
+  ['navHome','navMap','navTraffic','navFlood','navRouting','navReport'].forEach((k,i) => {
+    if (navLinks[i]) navLinks[i].textContent = t[k];
+  });
+
+  // ── H1 / title badge ──
+  setText('h1', 'h1');
+
+  // ── Hero ──
+  setText('#homeSection h2', 'heroTitle');
+  const heroBadgeEl = q('#homeSection .inline-flex span:last-child');
+  if (heroBadgeEl) heroBadgeEl.textContent = t.heroBadge;
+  setText('#homeSection p.text-slate-300', 'heroDesc');
+  const btnExploreEl = q('a[href="#mapSection"].nav-link.bg-gradient-to-r');
+  if (btnExploreEl) btnExploreEl.lastChild.textContent = ' ' + t.btnExplore;
+  const btnRouteEl = q('a[href="#routingSection"].nav-link.bg-white\\/10');
+  if (btnRouteEl) btnRouteEl.lastChild.textContent = ' ' + t.btnRoute;
+
+  // ── Map section ──
+  setText('#mapSection h3', 'mapTitle');
+  setText('#mapSection p.text-xs', 'mapSubtitle');
+  // Map legend title
+  const legendTitle = q('.absolute.bottom-4 .font-bold.text-slate-900');
+  if (legendTitle) legendTitle.textContent = t.mapLegendTitle;
+  // Filter buttons
+  qa('.map-filter-btn').forEach(btn => {
+    const f = btn.dataset.filter;
+    if (f === 'congestion') btn.textContent = t.filterCongestion;
+    else if (f === 'flood') btn.textContent = t.filterFlood;
+    else if (f === 'accident') btn.textContent = t.filterAccident;
+    else if (f === 'blocked') btn.textContent = t.filterBlocked;
+  });
+
+  // ── Traffic section ──
+  setText('#trafficSection h3', 'trafficTitle');
+  setText('#trafficSection p.text-xs', 'trafficSubtitle');
+  // Refresh button text node
+  const refreshBtn = q('#trafficSection button[onclick]');
+  if (refreshBtn) { const last = refreshBtn.lastChild; if (last && last.nodeType === 3) last.textContent = '\n          ' + t.btnRefresh + '\n        '; }
+  // Table headers
+  const ths = qa('#trafficSection thead th');
+  if (ths[0]) ths[0].textContent = t.colRoute;
+  if (ths[1]) ths[1].textContent = t.colStatus;
+  if (ths[2]) ths[2].textContent = t.colSpeed;
+
+  // ── Flood section ──
+  setText('#floodSection h3', 'floodTitle');
+  setText('#floodSection p.text-xs', 'floodSubtitle');
+  // Overall badge label
+  const floodOverallLabel = q('#floodSection .flex.items-center.gap-2 span.text-xs');
+  if (floodOverallLabel) floodOverallLabel.textContent = t.floodOverall;
+  // Flood table header & hint
+  const floodTableTitle = q('#floodSection .font-bold.text-xs.text-slate-700');
+  if (floodTableTitle) floodTableTitle.textContent = t.floodTableTitle;
+  const floodTableHint = q('#floodSection .text-\\[11px\\].text-slate-400');
+  if (floodTableHint) floodTableHint.textContent = t.floodTableHint;
+  const fths = qa('#floodSection thead th');
+  if (fths[0]) fths[0].textContent = t.colPoint;
+  if (fths[1]) fths[1].textContent = t.colRisk;
+  if (fths[2]) fths[2].textContent = t.colWater;
+  if (fths[3]) fths[3].textContent = t.colState;
+  // Weather stat cards
+  const statCards = qa('#floodSection .grid.grid-cols-2 span.text-\\[11px\\]');
+  if (statCards[0]) statCards[0].textContent = t.statTemp;
+  if (statCards[1]) statCards[1].textContent = t.statHumid;
+  if (statCards[2]) statCards[2].textContent = t.statRain;
+  if (statCards[3]) statCards[3].textContent = t.statPoints;
+
+  // ── Routing section ──
+  setText('#routingSection h3', 'routingTitle');
+  setText('#routingSection p.text-xs', 'routingSubtitle');
+  setText('#routeMapHeaderTitle', 'routeMapTitle');
+  // Routing badge
+  const routingBadgeEl = q('#routingSection .bg-emerald-100');
+  if (routingBadgeEl) routingBadgeEl.textContent = t.routingBadge;
+  // Form labels
+  const routingLabels = qa('#routingSection label.block.text-xs');
+  if (routingLabels[0]) routingLabels[0].textContent = t.labelFrom;
+  if (routingLabels[1]) routingLabels[1].textContent = t.labelTo;
+  if (routingLabels[2]) routingLabels[2].textContent = t.labelVehicle;
+  if (routingLabels[3]) routingLabels[3].textContent = t.labelPriority;
+  setPlaceholder('#routeStartInput', 'startPlaceholder');
+  setPlaceholder('#routeEndInput', 'endPlaceholder');
+  // Vehicle radio labels (spans with text)
+  const vehicleSpans = qa('#routingSection .grid.grid-cols-3 span.font-semibold');
+  if (vehicleSpans[0]) vehicleSpans[0].textContent = t.vehicleMotorbike;
+  if (vehicleSpans[1]) vehicleSpans[1].textContent = t.vehicleCar;
+  if (vehicleSpans[2]) vehicleSpans[2].textContent = t.vehicleBike;
+  // Priority options
+  const priorityOpts = qa('#routePreferenceSelect option');
+  if (priorityOpts[0]) priorityOpts[0].textContent = t.priorityFlood;
+  if (priorityOpts[1]) priorityOpts[1].textContent = t.priorityCongestion;
+  if (priorityOpts[2]) priorityOpts[2].textContent = t.priorityFast;
+  // Calculate button
+  const calcBtn = q('#calculateRouteBtn');
+  if (calcBtn) calcBtn.lastChild.textContent = '\n            ' + t.btnCalculate + '\n          ';
+
+  // ── Report section ──
+  setText('#reportSection h3', 'reportTitle');
+  setText('#reportSection p.text-xs', 'reportSubtitle');
+  // Report badge
+  const reportBadgeEl = q('#reportSection .bg-cyan-100');
+  if (reportBadgeEl) reportBadgeEl.textContent = t.reportBadge;
+  // Location label
+  const locationLabel = q('label[for="reportLocationInput"], #reportSection label.text-xs.font-bold');
+  if (locationLabel) locationLabel.firstChild.textContent = t.labelLocation + ' ';
+  // Pick on map button
+  const pickMapBtn = q('#pickLocationFromMapBtn');
+  if (pickMapBtn) pickMapBtn.textContent = t.btnPickMap;
+  // Location placeholder
+  setPlaceholder('#reportLocationInput', 'locationPlaceholder');
+  // Type label & options
+  const typeLabel = q('label[for="reportTypeSelect"]');
+  if (typeLabel) typeLabel.firstChild.textContent = t.labelType + ' ';
+  const typeOpts = qa('#reportTypeSelect option');
+  if (typeOpts[0]) typeOpts[0].textContent = t.typeCongestion;
+  if (typeOpts[1]) typeOpts[1].textContent = t.typeFlood;
+  if (typeOpts[2]) typeOpts[2].textContent = t.typeAccident;
+  if (typeOpts[3]) typeOpts[3].textContent = t.typeBlocked;
+  if (typeOpts[4]) typeOpts[4].textContent = t.typeOther;
+  // Severity label & options
+  const sevLabel = q('label[for="reportSeveritySelect"]');
+  if (sevLabel) sevLabel.firstChild.textContent = t.labelSeverity + ' ';
+  const sevOpts = qa('#reportSeveritySelect option');
+  if (sevOpts[0]) sevOpts[0].textContent = t.sevLow;
+  if (sevOpts[1]) sevOpts[1].textContent = t.sevMed;
+  if (sevOpts[2]) sevOpts[2].textContent = t.sevHigh;
+  // Description label & placeholder
+  const descLabel = q('label[for="reportDescTextarea"]');
+  if (descLabel) descLabel.firstChild.textContent = t.labelDesc + ' ';
+  setPlaceholder('#reportDescTextarea', 'descPlaceholder');
+  // Photo label
+  const photoLabel = q('label[for="reportImageInput"]');
+  if (photoLabel) photoLabel.textContent = t.labelPhoto;
+  // Submit button
+  const submitBtn = q('#reportSection button[type="submit"]');
+  if (submitBtn) submitBtn.lastChild.textContent = '\n            ' + t.btnSubmit + '\n          ';
+
+  // ── Mobile nav labels ──
+  const mobileSpans = qa('nav.lg\\:hidden a .text-\\[10px\\]');
+  ['mobileHome','mobileMap','mobileTraffic','mobileFlood','mobileRouting','mobileReport'].forEach((k,i) => {
+    if (mobileSpans[i]) mobileSpans[i].textContent = t[k];
+  });
+}
+
+// Apply saved language on load
+applyLanguage(currentLang);
+
+document.getElementById('langToggleBtn').addEventListener('click', () => {
+  applyLanguage(currentLang === 'vi' ? 'en' : 'vi');
+});
+</script>
+</body>
+</html>
